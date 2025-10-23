@@ -531,7 +531,7 @@ try:
                 
             ## Build and send command
             # Use standup_torque for stand-up motion phases
-            current_torque = standup_torque if motiontime >= 10 else tau
+            current_torque = standup_torque if motiontime >= 10 else tau 
             
             lcmd.motorCmd = motionArr(mCmdArr, joint, qDes, [0]*jointnum, kp, kd, current_torque)
             # build command bytes
