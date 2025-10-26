@@ -80,10 +80,10 @@ class motorCmd:
         return (self.mode).to_bytes(1, byteorder='little') + float_to_hex(self.q) + float_to_hex(self.dq) + tau_to_hex(self.tau) + kp_to_hex(self.Kp) + kd_to_hex(self.Kd) + self.reserve[0].to_bytes(4, byteorder='little') + self.reserve[1].to_bytes(4, byteorder='little') + self.reserve[2].to_bytes(4, byteorder='little')
 
     def fromBytes(self, data, should_print=False):
-        self.mode = data[0]                             # desired working mode
-        self.q = hex_to_float(data[1:5])                # desired angle (unit: radian)
-        self.dq = hex_to_float(data[5:9])               # desired velocity (unit: radian/second)
-        self.tau = hex_to_tau(data[9:11])             # desired output torque (unit: N.m)
+        self.mode = data[0]                          # desired working mode
+        self.q = hex_to_float(data[1:5])             # desired angle (unit: radian)
+        self.dq = hex_to_float(data[5:9])            # desired velocity (unit: radian/second)
+        self.tau = hex_to_tau(data[9:11])            # desired output torque (unit: N.m)
         self.Kp = hex_to_kp(data[11:13])             # desired position stiffness (unit: N.m/rad )
         self.Kd = hex_to_kd(data[13:15])             # desired velocity stiffness (unit: N.m/(rad/s) )
         self.reserve = [data[15:18], data[18:21], data[21:23], data[24:27]]

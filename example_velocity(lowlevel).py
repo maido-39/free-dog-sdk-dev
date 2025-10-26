@@ -79,13 +79,14 @@ while True:
             print(f'FootForceEst:\t\t{lstate.footForceEst}')
             print(f'IMU Temp:\t\t{lstate.imu.temperature}')
             print(f'MotorState FL_2 MODE:\t\t{lstate.motorState[d["FL_2"]].mode}')
-            print(f'MotorState FL_2 q:\t\t{lstate.motorState[d["FL_2"]].q}')
+            print(f'MotorState FL_2 q:\t\t{math.degrees(lstate.motorState[d["FL_2"]].q)}')
             print(f'MotorState FL_2 dq:\t\t{lstate.motorState[d["FL_2"]].dq}')
             print('+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=')
 
     if( motiontime >= 500):
-        speed = 2 * math.sin(3*math.pi*Tpi/2000.0)
-        mCmdArr.setMotorCmd('FL_2',  motorCmd(mode=MotorModeLow.Servo, q=0, dq = speed, Kp = 0, Kd = 4, tau = 0.0))
+        speed = 3 * math.sin(3*math.pi*Tpi/(2000.0))
+        # print("Speed Command FL_2:", speed)
+        mCmdArr.setMotorCmd('FL_2',  motorCmd(mode=MotorModeLow.Servo, q=0, dq = speed, Kp = 0, Kd = 10, tau = 0.0))
         lcmd.motorCmd = mCmdArr
 
         Tpi += 1

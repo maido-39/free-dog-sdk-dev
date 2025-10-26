@@ -1,0 +1,16 @@
+{
+    // IntelliSense 설명용 주석 (삭제해도 됨)
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run example_position-dev-4legs.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/example_position-dev-4legs.py",
+            "console": "integratedTerminal",
+            "python": "/home/aril/miniconda3/envs/dog/bin/python",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
+        }
+    ]
+}

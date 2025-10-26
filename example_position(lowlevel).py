@@ -28,7 +28,7 @@ d = {'FR_0':0, 'FR_1':1, 'FR_2':2,
      'RL_0':9, 'RL_1':10, 'RL_2':11 }
 
 PosStopF  = math.pow(10,9)
-VelStopF  = 16000.0
+VelStopF  = 16000.0 
 LOWLEVEL  = 0xff
 sin_mid_q = [0.0, 1.2, -2.0]
 dt = 0.002
@@ -89,8 +89,8 @@ while True:
             print(f'FootForceEst:\t\t{lstate.footForceEst}')
             print(f'IMU Temp:\t\t{lstate.imu.temperature}')
             print(f'MotorState FR_0 MODE:\t\t{lstate.motorState[d["FR_0"]].mode}')
-            print(f'MotorState FR_0 q:\t\t{lstate.motorState[d["FR_0"]].q}')
-            print(f'MotorState FR_0 dq:\t\t{lstate.motorState[d["FR_0"]].dq}')
+            print(f'MotorState FR_0 q (deg):\t\t{lstate.motorState[d["FR_0"]].q}')
+            print(f'MotorState FR_0 dq (deg/s):\t\t{lstate.motorState[d["FR_0"]].dq}')
             print('+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=')
 
     if( motiontime >= 0):

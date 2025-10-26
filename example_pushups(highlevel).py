@@ -16,7 +16,7 @@ import time
 
 print(f'Running lib version: {lib_version()}')
 
-conn = unitreeConnection(HIGH_WIFI_DEFAULTS)
+conn = unitreeConnection(HIGH_WIRED_DEFAULTS)
 conn.startRecv()
 hcmd = highCmd()
 hstate = highState()
