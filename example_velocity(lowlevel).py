@@ -31,13 +31,22 @@ d = {'FR_0':0, 'FR_1':1, 'FR_2':2,
 print(f'Running lib version: {lib_version()}')
 conn = unitreeConnection(LOW_WIFI_DEFAULTS)
 conn.startRecv()
+
+
 lcmd = lowCmd()
 # lcmd.encrypt = True
 lstate = lowState()
 mCmdArr = motorCmdArray()
+
+
+
 # Send empty command to tell the dog the receive port and initialize the connection
 cmd_bytes = lcmd.buildCmd(debug=False)
 conn.send(cmd_bytes)
+
+
+
+
 data = conn.getData()
 for paket in data:
     lstate.parseData(paket)
@@ -56,6 +65,7 @@ for paket in data:
     print(f'MotorState FL_2 MODE:\t\t{lstate.motorState[d["FL_2"]].mode}')
     print('+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=')
 
+time.sleep(6)
 Tpi = 0
 motiontime = 0
 speed = 0.0

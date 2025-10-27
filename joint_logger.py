@@ -411,7 +411,7 @@ try:
                 real_times.append(time.time() - start_time)  # real time elapsed
                 
                 # Print progress every 50 cycles (1 second at 50Hz)
-                if motiontime % 50 == 0:
+                if motiontime % int(1/ctrldt) == 0:
                     print(f"Logged {len(joint_positions)} data points...")
         
         # Timing control
