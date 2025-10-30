@@ -4,12 +4,24 @@ import math
 import os
 import csv
 from datetime import datetime
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+import sys
+
+# Ensure parent directory (project root) is on sys.path for absolute imports
+CURRENT_DIR = os.path.dirname(__file__)
+PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+logger = logging.getLogger("dashboard")
 
 from ucl.highCmd import highCmd
 from ucl.highState import highState
@@ -24,19 +36,22 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        logger.info("WebSocket connected. total=%d", len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
         try:
             self.active_connections.remove(websocket)
         except ValueError:
             pass
+        logger.info("WebSocket disconnected. total=%d", len(self.active_connections))
 
     async def broadcast(self, message: str):
         stale: List[WebSocket] = []
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
-            except Exception:
+            except Exception as e:
+                logger.warning("Broadcast to a client failed: %s", e)
                 stale.append(connection)
         for s in stale:
             self.disconnect(s)
@@ -63,6 +78,7 @@ class DataStreamer:
         self.hcmd: Optional[highCmd] = None
         self.hstate: Optional[highState] = None
         self.running: bool = False
+        self.last_packet_ts: Optional[float] = None
         # CSV logging
         self.log_dir: str = os.path.join("dashboard", "logs")
         self.csv_file: Optional[Any] = None
@@ -73,13 +89,22 @@ class DataStreamer:
         if self.running:
             return
         # Initialize connection
+        logger.info("Starting Unitree connection with defaults: %s", HIGH_WIFI_DEFAULTS)
         self.conn = unitreeConnection(HIGH_WIFI_DEFAULTS)
-        self.conn.startRecv()
+        try:
+            self.conn.startRecv()
+        except Exception as e:
+            logger.error("Failed to start receiver: %s", e)
+            raise
         self.hcmd = highCmd()
         self.hstate = highState()
         # Send empty command once to register receive port
-        cmd_bytes = self.hcmd.buildCmd(debug=False)
-        self.conn.send(cmd_bytes)
+        try:
+            cmd_bytes = self.hcmd.buildCmd(debug=False)
+            self.conn.send(cmd_bytes)
+            logger.info("Sent initial registration command")
+        except Exception as e:
+            logger.error("Failed to send initial command: %s", e)
         # Prepare CSV logger
         try:
             os.makedirs(self.log_dir, exist_ok=True)
@@ -101,11 +126,13 @@ class DataStreamer:
                 "stability_score"
             ])
             self.csv_header_written = True
-        except Exception:
+        except Exception as e:
             # logging is optional; continue even if it fails
             self.csv_file = None
             self.csv_writer = None
+            logger.warning("CSV logging disabled due to error: %s", e)
         self.running = True
+        logger.info("DataStreamer started")
 
     def stop(self):
         self.running = False
@@ -113,8 +140,8 @@ class DataStreamer:
             if self.csv_file:
                 self.csv_file.flush()
                 self.csv_file.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error while closing CSV file: %s", e)
 
     def _compute_stability(self, imu_data: Dict[str, Any], yawspeed: float) -> Dict[str, Any]:
         # Score 100 -> penalize based on thresholds
@@ -221,23 +248,28 @@ class DataStreamer:
         }
 
     async def loop(self):
-        self.start()
-        assert self.conn is not None
-        assert self.hstate is not None
         while self.running:
             loop_started = asyncio.get_event_loop().time()
             try:
+                if self.conn is None:
+                    logger.debug("Connection not initialized yet; sleeping")
+                    await asyncio.sleep(self.target_period_s)
+                    continue
                 data_packets: List[bytes] = self.conn.getData()
                 # Only process the latest packet to maintain ~50Hz cadence
                 if data_packets:
                     pkt = data_packets[-1]
                     try:
-                        self.hstate.parseData(pkt)
+                        if self.hstate is None:
+                            logger.debug("HighState not initialized; skipping packet")
+                        else:
+                            self.hstate.parseData(pkt)
                         payload = self._state_to_payload(self.hstate)
                         await manager.broadcast(json.dumps(payload))
-                    except Exception:
+                        self.last_packet_ts = loop_started
+                    except Exception as e:
                         # skip malformed latest packet
-                        pass
+                        logger.debug("Malformed/latest packet parse error: %s", e)
                     # CSV logging
                     try:
                         if self.csv_writer:
@@ -266,12 +298,14 @@ class DataStreamer:
                             self.csv_writer.writerow(row)
                             if self.csv_file:
                                 self.csv_file.flush()
-                    except Exception:
+                    except Exception as e:
                         # ignore logging errors
-                        pass
-            except Exception:
+                        logger.debug("CSV write error: %s", e)
+                else:
+                    logger.debug("No data packets received this cycle")
+            except Exception as e:
                 # keep running despite transient errors
-                pass
+                logger.warning("Data loop error: %s", e)
             elapsed = asyncio.get_event_loop().time() - loop_started
             sleep_time = max(0.0, self.target_period_s - elapsed)
             await asyncio.sleep(sleep_time)
@@ -282,13 +316,19 @@ streamer = DataStreamer(target_hz=50.0)
 
 @app.on_event("startup")
 async def on_startup():
-    streamer.running = True
+    try:
+        streamer.start()
+    except Exception as e:
+        logger.error("Streamer failed to start: %s", e)
+        # keep app up; allow retries via future controls
     asyncio.create_task(streamer.loop())
+    logger.info("FastAPI startup complete; streamer loop scheduled (running=%s)", streamer.running)
 
 
 @app.on_event("shutdown")
 async def on_shutdown():
     streamer.stop()
+    logger.info("FastAPI shutdown complete; streamer stopped")
 
 
 @app.websocket("/ws")
@@ -300,8 +340,24 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    except Exception:
+    except Exception as e:
+        logger.warning("WebSocket endpoint error: %s", e)
         manager.disconnect(websocket)
+
+
+@app.get("/health")
+async def health() -> Dict[str, Any]:
+    return {"status": "ok"}
+
+
+@app.get("/status")
+async def status() -> Dict[str, Any]:
+    return {
+        "clients": len(manager.active_connections),
+        "running": streamer.running,
+        "last_packet_ts": streamer.last_packet_ts,
+        "target_hz": 1.0 / streamer.target_period_s if streamer.target_period_s else None,
+    }
 
 
 def main():
