@@ -22,6 +22,7 @@ import os
 import logging
 from datetime import datetime
 import json
+import math
 
 
 def main():
@@ -285,8 +286,13 @@ def main():
                         print("\n" + "=" * 80)
                         print(f"{ 'Battery':>10}: {state['battery']:6.1f}%   { 'Mode':>6}: {state['mode']:>2}   { 'Time':>6}: {elapsed:6.2f}s")
                         print(f"{ 'Pos':>10}: {pos[0]:7.3f}, {pos[1]:7.3f}, {pos[2]:7.3f}")
-                        print(f"{ 'Vel':>10}: {vx:7.3f}, {vy:7.3f}, {vz:7.3f}   YawSp: {state['yaw_speed']:7.3f}")
-                        print(f"{ 'Roll':>10}: {roll:7.3f}   { 'Pitch':>7}: {pitch:7.3f}   { 'Yaw':>6}: {yaw:7.3f}")
+                        # also print degree equivalents next to radian values
+                        yaw_sp_deg = math.degrees(state.get('yaw_speed', 0.0))
+                        roll_deg = math.degrees(roll)
+                        pitch_deg = math.degrees(pitch)
+                        yaw_deg = math.degrees(yaw)
+                        print(f"{ 'Vel':>10}: {vx:7.3f}, {vy:7.3f}, {vz:7.3f}   YawSp: {state['yaw_speed']:7.3f} ({yaw_sp_deg:7.3f} deg/s)")
+                        print(f"{ 'Roll':>10}: {roll:7.3f} ({roll_deg:6.2f} deg)   { 'Pitch':>7}: {pitch:7.3f} ({pitch_deg:6.2f} deg)   { 'Yaw':>6}: {yaw:7.3f} ({yaw_deg:6.2f} deg)")
                         print(f"{ 'FootF':>10}: {foot_force}   { 'Stability':>9}: {smooth_stability:8.3f}")
                         print(f"{ 'SpeedScore':>10}: {int(round(smooth_speed_score)):6d}   { 'TimeScore':>10}: {int(round(smooth_time_score)):6d}   { 'Total':>6}: {total_score:8.2f}")
                         print("=" * 80)
