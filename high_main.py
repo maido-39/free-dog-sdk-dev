@@ -23,6 +23,25 @@ import logging
 from datetime import datetime
 import json
 import math
+# ANSI colors for CLI
+RESET = "\033[0m"
+BOLD = "\033[1m"
+CYAN = "\033[36m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+MAGENTA = "\033[35m"
+RED = "\033[31m"
+
+# optional rich for prettier CLI output; fall back if not installed
+try:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    console = Console()
+    RICH_AVAILABLE = True
+except Exception:
+    console = None
+    RICH_AVAILABLE = False
 
 
 def main():
@@ -61,6 +80,8 @@ def main():
 
     # 녹화 상태
     shared_state['recording'] = False
+    # safety flag: FAIL when attitude limits exceeded
+    shared_state['fail'] = False
 
     # 화면 표시에 사용할 최근 상태
     state_queue = deque(maxlen=10)
@@ -158,7 +179,7 @@ def main():
                                 shared_state['recording'] = True
                                 print(f"Recording started -> {fpath}")
                     elif event.key == pygame.K_m:
-                        # Stop recording
+                        # Stop recording (if active) and always clear FAIL flag
                         with state_lock:
                             if shared_state.get('recording', False):
                                 shared_state['recording'] = False
@@ -174,6 +195,10 @@ def main():
                                 speed_window.clear()
                                 time_window.clear()
                                 print("Recording stopped")
+                            # Always clear FAIL flag so user can resume commands
+                            if shared_state.get('fail', False):
+                                shared_state['fail'] = False
+                                print("FAIL flag cleared - commands enabled")
 
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_i:
@@ -248,6 +273,8 @@ def main():
                 with state_lock:
                     if state_queue:
                         state = state_queue[-1]
+                        
+                        ## Metric 계산하는 부분
                         # compute metrics
                         roll, pitch, yaw = state.get('rpy', [0.0, 0.0, 0.0])
                         # Stability: 1 / (roll^2 + pitch^2) with small eps to avoid div0
@@ -283,19 +310,66 @@ def main():
                         pos = state.get('pos', [0.0, 0.0, 0.0])
                         foot_force = state.get('foot_force', [0, 0, 0, 0])
 
-                        print("\n" + "=" * 80)
-                        print(f"{ 'Battery':>10}: {state['battery']:6.1f}%   { 'Mode':>6}: {state['mode']:>2}   { 'Time':>6}: {elapsed:6.2f}s")
-                        print(f"{ 'Pos':>10}: {pos[0]:7.3f}, {pos[1]:7.3f}, {pos[2]:7.3f}")
-                        # also print degree equivalents next to radian values
-                        yaw_sp_deg = math.degrees(state.get('yaw_speed', 0.0))
-                        roll_deg = math.degrees(roll)
-                        pitch_deg = math.degrees(pitch)
-                        yaw_deg = math.degrees(yaw)
-                        print(f"{ 'Vel':>10}: {vx:7.3f}, {vy:7.3f}, {vz:7.3f}   YawSp: {state['yaw_speed']:7.3f} ({yaw_sp_deg:7.3f} deg/s)")
-                        print(f"{ 'Roll':>10}: {roll:7.3f} ({roll_deg:6.2f} deg)   { 'Pitch':>7}: {pitch:7.3f} ({pitch_deg:6.2f} deg)   { 'Yaw':>6}: {yaw:7.3f} ({yaw_deg:6.2f} deg)")
-                        print(f"{ 'FootF':>10}: {foot_force}   { 'Stability':>9}: {smooth_stability:8.3f}")
-                        print(f"{ 'SpeedScore':>10}: {int(round(smooth_speed_score)):6d}   { 'TimeScore':>10}: {int(round(smooth_time_score)):6d}   { 'Total':>6}: {total_score:8.2f}")
-                        print("=" * 80)
+                        # Prefer rich if available
+                        if RICH_AVAILABLE:
+                            # header / basic info
+                            table = Table.grid(expand=False)
+                            table.add_column(justify="right", style="cyan")
+                            table.add_column()
+                            table.add_row("Battery", f"[bold]{state['battery']:6.1f}%[/]")
+                            table.add_row("Mode", f"{state['mode']}")
+                            table.add_row("Time", f"{elapsed:6.2f}s")
+                            table.add_row("Pos", f"{pos[0]:7.3f}, {pos[1]:7.3f}, {pos[2]:7.3f}")
+
+                            # attitude / velocity small table
+                            att = Table.grid(expand=False)
+                            att.add_column()
+                            att.add_column()
+                            yaw_sp_deg = math.degrees(state.get('yaw_speed', 0.0))
+                            roll_deg = math.degrees(roll)
+                            pitch_deg = math.degrees(pitch)
+                            yaw_deg = math.degrees(yaw)
+                            att.add_row("Vel", f"{vx:7.3f}, {vy:7.3f}, {vz:7.3f}   YawSp: {state['yaw_speed']:7.3f} ({yaw_sp_deg:6.2f} deg/s)")
+                            att.add_row("RPY", f"Roll: {roll:7.3f} ({roll_deg:6.2f} deg), Pitch: {pitch:7.3f} ({pitch_deg:6.2f} deg), Yaw: {yaw:7.3f} ({yaw_deg:6.2f} deg)")
+
+                            # metrics table
+                            metrics_tbl = Table(title="Metrics", show_header=True, header_style="bold magenta")
+                            metrics_tbl.add_column("Metric")
+                            metrics_tbl.add_column("Value", justify="right")
+                            metrics_tbl.add_row("Stability", f"[magenta]{smooth_stability:.3f}[/]")
+                            metrics_tbl.add_row("SpeedScore", f"[yellow]{int(round(smooth_speed_score))}[/]")
+                            metrics_tbl.add_row("TimeScore", f"[cyan]{int(round(smooth_time_score))}[/]")
+                            total_style = "green" if total_score >= 0 else "red"
+                            metrics_tbl.add_row("Total", f"[{total_style}]{total_score:.2f}[/{total_style}]")
+
+                            console.rule("Status")
+                            console.print(table)
+                            console.print(att)
+                            console.print(metrics_tbl)
+                            console.rule()
+                        else:
+                            # fallback to previous ANSI colored prints
+                            print("\n" + BOLD + CYAN + "=" * 80 + RESET)
+                            print(f"{CYAN}{'Battery':>10}{RESET}: {BOLD}{state['battery']:6.1f}%{RESET}   {CYAN}{'Mode':>6}{RESET}: {state['mode']:>2}   {CYAN}{'Time':>6}{RESET}: {elapsed:6.2f}s")
+                            print(f"{CYAN}{'Pos':>10}{RESET}: {pos[0]:7.3f}, {pos[1]:7.3f}, {pos[2]:7.3f}")
+                            yaw_sp_deg = math.degrees(state.get('yaw_speed', 0.0))
+                            roll_deg = math.degrees(roll)
+                            pitch_deg = math.degrees(pitch)
+                            yaw_deg = math.degrees(yaw)
+                            print(f"{ 'Vel':>10}: {vx:7.3f}, {vy:7.3f}, {vz:7.3f}   YawSp: {state['yaw_speed']:7.3f} ({yaw_sp_deg:7.3f} deg/s)")
+                            print(f"{ 'Roll':>10}: {roll:7.3f} ({roll_deg:6.2f} deg)   { 'Pitch':>7}: {pitch:7.3f} ({pitch_deg:6.2f} deg)   { 'Yaw':>6}: {yaw:7.3f} ({yaw_deg:6.2f} deg)")
+                            # colored metric outputs
+                            stability_col = MAGENTA
+                            speed_col = YELLOW
+                            time_col = CYAN
+                            total_col = GREEN if total_score >= 0 else RED
+                            stab_str = f"{stability_col}{smooth_stability:8.3f}{RESET}"
+                            speed_str = f"{speed_col}{int(round(smooth_speed_score)):6d}{RESET}"
+                            time_str = f"{time_col}{int(round(smooth_time_score)):6d}{RESET}"
+                            total_str = f"{total_col}{total_score:8.2f}{RESET}"
+                            print(f"{CYAN}{'FootF':>10}{RESET}: {foot_force}   {CYAN}{'Stability':>9}{RESET}: {stab_str}")
+                            print(f"{CYAN}{'SpeedScore':>10}{RESET}: {speed_str}   {CYAN}{'TimeScore':>10}{RESET}: {time_str}   {CYAN}{'Total':>6}{RESET}: {total_str}")
+                            print("=" * 80)
 
                         # CSV 기록 (recording 중일 때)
                         if shared_state.get('recording', False) and csv_writer:
@@ -315,6 +389,23 @@ def main():
                                 csv_fp.flush()
                             except Exception as e:
                                 logging.error(f"Error writing CSV: {e}")
+                            # Safety check: if roll/pitch exceed thresholds -> FAIL
+                            # thresholds are in degrees per user request
+                            try:
+                                # pitch fail if >20 or < -18
+                                if pitch_deg > 20.0 or pitch_deg < -18.0:
+                                    if not shared_state.get('fail', False):
+                                        shared_state['fail'] = True
+                                        logging.warning(f"FAIL: pitch out of bounds: {pitch_deg:.2f} deg")
+                                        print(f"*** FAIL: pitch out of bounds: {pitch_deg:.2f} deg -> commands disabled")
+                                # roll fail if < -35 or > 31
+                                if roll_deg < -35.0 or roll_deg > 31.0:
+                                    if not shared_state.get('fail', False):
+                                        shared_state['fail'] = True
+                                        logging.warning(f"FAIL: roll out of bounds: {roll_deg:.2f} deg")
+                                        print(f"*** FAIL: roll out of bounds: {roll_deg:.2f} deg -> commands disabled")
+                            except Exception:
+                                pass
             except Exception as e:
                 logging.error(f"display_state error: {e}")
             time.sleep(0.2)

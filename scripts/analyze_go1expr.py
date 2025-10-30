@@ -159,18 +159,28 @@ def main():
     else:
         ax_metrics.text(0.5, 0.5, 'No metric columns found', ha='center', va='center')
 
-    # Attitude: roll, pitch, yaw (degrees)
-    ax_att.plot(t, roll_deg, label='roll (deg)')
-    ax_att.plot(t, pitch_deg, label='pitch (deg)')
-    ax_att.plot(t, yaw_deg, label='yaw (deg)')
-    ax_att.set_title('Attitude: roll / pitch / yaw (degrees)')
-    ax_att.set_xlabel('elapsed (s)')
-    ax_att.set_ylabel('degrees')
-    ax_att.legend()
-    # annotate extrema on each series
-    annotate_extrema(ax_att, t, pd.Series(roll_deg, index=df.index), label_prefix='')
-    annotate_extrema(ax_att, t, pd.Series(pitch_deg, index=df.index), label_prefix='')
-    annotate_extrema(ax_att, t, pd.Series(yaw_deg, index=df.index), label_prefix='')
+    # Attitude: roll & pitch on left axis, yaw on right axis (separate scale)
+    ax_att_left = ax_att
+    ax_att_right = ax_att.twinx()
+
+    ax_att_left.plot(t, roll_deg, label='roll (deg)', color='C0')
+    ax_att_left.plot(t, pitch_deg, label='pitch (deg)', color='C2')
+    ax_att_right.plot(t, yaw_deg, label='yaw (deg)', color='C1')
+
+    ax_att_left.set_title('Attitude: roll / pitch (left) and yaw (right)')
+    ax_att_left.set_xlabel('elapsed (s)')
+    ax_att_left.set_ylabel('roll / pitch (deg)')
+    ax_att_right.set_ylabel('yaw (deg)')
+
+    # combined legend
+    lines_left, labels_left = ax_att_left.get_legend_handles_labels()
+    lines_right, labels_right = ax_att_right.get_legend_handles_labels()
+    ax_att_left.legend(lines_left + lines_right, labels_left + labels_right, loc='upper right', fontsize=9)
+
+    # annotate extrema on respective axes
+    annotate_extrema(ax_att_left, t, pd.Series(roll_deg, index=df.index), label_prefix='')
+    annotate_extrema(ax_att_left, t, pd.Series(pitch_deg, index=df.index), label_prefix='')
+    annotate_extrema(ax_att_right, t, pd.Series(yaw_deg, index=df.index), label_prefix='')
 
     # Velocity and yaw speed: use twin y-axis because yaw (deg/s) scale differs
     ax_vel_left = ax_vel
