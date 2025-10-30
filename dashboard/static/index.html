@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Free-Dog Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Free-Dog Realtime Dashboard</h1>
+        <div class="status">
+          <span id="ws-status" class="badge red">DISCONNECTED</span>
+          <span id="rate" class="badge">0 Hz</span>
+        </div>
+      </header>
+
+      <section class="cards">
+        <div class="card">
+          <h2>Battery</h2>
+          <div class="kv">
+            <div><label>SoC</label><span id="soc">-</span></div>
+            <div><label>Current (mA)</label><span id="current">-</span></div>
+            <div><label>Voltage (mV)</label><span id="voltage">-</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>IMU</h2>
+          <div class="kv">
+            <div><label>Gyro (deg/s)</label><span id="gyro">-</span></div>
+            <div><label>Accel (m/s²)</label><span id="accel">-</span></div>
+            <div><label>RPY (deg)</label><span id="rpy">-</span></div>
+            <div><label>YawSpeed (rad/s)</label><span id="yawspeed">-</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Pose / Velocity</h2>
+          <div class="kv">
+            <div><label>Position (x, y)</label><span id="pos">-</span></div>
+            <div><label>Velocity (vx, vy)</label><span id="vel">-</span></div>
+          </div>
+        </div>
+        <div class="card score">
+          <h2>Stability Score</h2>
+          <div class="score-value" id="score">-</div>
+          <div class="penalties" id="penalties"></div>
+        </div>
+      </section>
+
+      <section class="plot">
+        <h2>2D Position</h2>
+        <canvas id="pos-canvas" width="600" height="400"></canvas>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+  </html>
+
+
